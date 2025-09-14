@@ -1,37 +1,42 @@
 param (
-    [string]$CsvPath = ".\users.csv"
+    [string]$CsvPath = ".\users.csv",
+    [string]$DomainName = "yourdomain.com",
+    [string]$OU = "OU=Users,DC=yourdomain,DC=com"
 )
 
-# Check if CSV exists
+Import-Module ActiveDirectory
+
 if (-Not (Test-Path $CsvPath)) {
     Write-Error "CSV file not found at $CsvPath"
     exit
 }
 
-# Import users from CSV
 $users = Import-Csv -Path $CsvPath
 
 foreach ($user in $users) {
-    $username = "$($user.FirstName).$($user.LastName)"
+    $username = "$($user.LastName)$($user.FirstName.Substring(0,1))".ToLower()
+    $upn = "$username@$DomainName"
     $fullName = "$($user.FirstName) $($user.LastName)"
-    $password = $user.Password | ConvertTo-SecureString -AsPlainText -Force
-    $department = $user.Department
-    $group = $user.Group
+
+    $password = ConvertTo-SecureString $user.Password -AsPlainText -Force
 
     try {
-        # Create local user
-        New-LocalUser -Name $username -Password $password -FullName $fullName -Description "Created via automation script"
-        Write-Output "User $username created successfully."
+        New-ADUser `
+            -Name $fullName `
+            -SamAccountName $username `
+            -UserPrincipalName $upn `
+            -GivenName $user.FirstName `
+            -Surname $user.LastName `
+            -DisplayName $fullName `
+            -Department $user.Department `
+            -AccountPassword $password `
+            -Path $OU `
+            -Enabled $true `
+            -ChangePasswordAtLogon $true
 
-        # Add user to local group (if group exists)
-        if (Get-LocalGroup -Name $group -ErrorAction SilentlyContinue) {
-            Add-LocalGroupMember -Group $group -Member $username
-            Write-Output "User $username added to group $group."
-        } else {
-            Write-Warning "Group $group does not exist. User $username was not added."
-        }
+        Write-Output "User $upn created successfully."
     }
     catch {
-        Write-Warning "Could not create user $username. Error: $_"
+        Write-Warning "Could not create user $upn. Error: $_"
     }
 }
