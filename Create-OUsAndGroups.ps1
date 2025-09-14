@@ -1,20 +1,42 @@
-# Import Active Directory module
+param (
+    [string]$CsvPath = ".\users.csv",
+    [string]$DomainName = "yourdomain.com",
+    [string]$OU = "OU=Users,DC=yourdomain,DC=com"
+)
+
 Import-Module ActiveDirectory
 
-# Departments
-$departments = @("Finance", "IT", "HR", "Sales")
+if (-Not (Test-Path $CsvPath)) {
+    Write-Error "CSV file not found at $CsvPath"
+    exit
+}
 
-foreach ($dept in $departments) {
-    # Create OU
-    $ouName = "OU=$dept,DC=yourdomain,DC=com"  # Replace with your domain
-    if (-not (Get-ADOrganizationalUnit -Filter "Name -eq '$dept'" -ErrorAction SilentlyContinue)) {
-        New-ADOrganizationalUnit -Name $dept -Path "DC=yourdomain,DC=com"
-        Write-Output "Created OU: $dept"
+$users = Import-Csv -Path $CsvPath
+
+foreach ($user in $users) {
+    $username = "$($user.LastName)$($user.FirstName.Substring(0,1))".ToLower()
+    $upn = "$username@$DomainName"
+    $fullName = "$($user.FirstName) $($user.LastName)"
+
+    $password = ConvertTo-SecureString $user.Password -AsPlainText -Force
+
+    try {
+        New-ADUser `
+            -Name $fullName `
+            -SamAccountName $username `
+            -UserPrincipalName $upn `
+            -GivenName $user.FirstName `
+            -Surname $user.LastName `
+            -DisplayName $fullName `
+            -Department $user.Department `
+            -AccountPassword $password `
+            -Path $OU `
+            -Enabled $true `
+            -ChangePasswordAtLogon $true
+
+        Write-Output "User $upn created successfully."
     }
-
-    # Create Security Group
-    if (-not (Get-ADGroup -Filter "Name -eq '$dept'" -ErrorAction SilentlyContinue)) {
-        New-ADGroup -Name $dept -GroupScope Global -Path $ouName
-        Write-Output "Created Security Group: $dept"
+    catch {
+        Write-Warning "Could not create user $upn. Error: $_"
     }
 }
