@@ -1,5 +1,5 @@
-Windows User, AD & Drive Mapping Automation (PowerShell)
-
+**Windows User, AD & Drive Mapping Automation (PowerShell)
+**
 This repository contains PowerShell scripts that automate user, group, and resource management in Windows Server Active Directory environments.
 It was built to practice PowerShell automation and simplify repetitive administration tasks such as onboarding users, creating organizational structure, and mapping network drives.
 
