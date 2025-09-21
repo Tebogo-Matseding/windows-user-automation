@@ -1,0 +1,55 @@
+# Import the Group Policy module
+Import-Module GroupPolicy
+
+# Define domain and server share info
+$Domain = "yourdomain"
+$ServerName = "your_server_name"  # Your file server name
+
+# Define drive mappings per OU/Department
+$DriveMappings = @(
+    @{
+        OU = "IT"
+        SharePath = "\\your_server_name\IT"
+    },
+    @{
+        OU = "Sales"
+        SharePath = "\\your_server_name\Sales"
+    },
+    @{
+        OU = "Finance"
+        SharePath = "\\your_server_name\Finance"
+    },
+    @{
+        OU = "Marketing"
+        SharePath = "\\your_server_name\Marketing"
+    },
+    @{
+        OU = "HR"
+        SharePath = "\\your_server_name\HR"
+    }
+)
+
+foreach ($map in $DriveMappings) {
+    $OUName = $map.OU
+    $GPOName = "$OUName Drive Mapping GPO"
+
+    # Check if GPO exists; create if not
+    if (-not (Get-GPO -Name $GPOName -ErrorAction SilentlyContinue)) {
+        New-GPO -Name $GPOName
+        Write-Output "Created GPO: $GPOName"
+    }
+
+    # Link GPO to OU
+    $OUPath = "OU=$OUName,DC=yourdomain,DC=com"
+    New-GPLink -Name $GPOName -Target $OUPath -Enforced Yes
+
+    # Map Letter: drive to department share
+    Set-GPDriveMap -Name $GPOName `
+                   -DriveLetter "yourdriveletter" `
+                   -Path $map.SharePath `
+                   -Action Create `
+                   -Reconnect Yes `
+                   -Label "$OUName Share"
+                   
+    Write-Output "Mapped $($map.SharePath) as your drive letter: for OU $OUName"
+}
