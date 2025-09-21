@@ -1,42 +1,26 @@
-param (
-    [string]$CsvPath = ".\users.csv",
-    [string]$DomainName = "yourdomain.com",
-    [string]$OU = "OU=Users,DC=yourdomain,DC=com"
-)
-
+# Import Active Directory module
 Import-Module ActiveDirectory
 
-if (-Not (Test-Path $CsvPath)) {
-    Write-Error "CSV file not found at $CsvPath"
-    exit
-}
+# Departments
+$departments = @("Finance", "IT", "HR", "Sales")
 
-$users = Import-Csv -Path $CsvPath
+foreach ($dept in $departments) {
+    $domainPath = "DC=yourdomain,DC=com"
+    $ouPath = "OU=$dept,$domainPath"
 
-foreach ($user in $users) {
-    $username = "$($user.LastName)$($user.FirstName.Substring(0,1))".ToLower()
-    $upn = "$username@$DomainName"
-    $fullName = "$($user.FirstName) $($user.LastName)"
-
-    $password = ConvertTo-SecureString $user.Password -AsPlainText -Force
-
-    try {
-        New-ADUser `
-            -Name $fullName `
-            -SamAccountName $username `
-            -UserPrincipalName $upn `
-            -GivenName $user.FirstName `
-            -Surname $user.LastName `
-            -DisplayName $fullName `
-            -Department $user.Department `
-            -AccountPassword $password `
-            -Path $OU `
-            -Enabled $true `
-            -ChangePasswordAtLogon $true
-
-        Write-Output "User $upn created successfully."
+    # Create OU if it doesn't exist
+    if (-not (Get-ADOrganizationalUnit -Filter {Name -eq $dept} -ErrorAction SilentlyContinue)) {
+        New-ADOrganizationalUnit -Name $dept -Path $domainPath
+        Write-Output "Created OU: $dept"
+    } else {
+        Write-Output "OU $dept already exists."
     }
-    catch {
-        Write-Warning "Could not create user $upn. Error: $_"
+
+    # Create Security Group if it doesn't exist
+    if (-not (Get-ADGroup -Filter {Name -eq $dept} -ErrorAction SilentlyContinue)) {
+        New-ADGroup -Name $dept -GroupScope Global -Path $ouPath
+        Write-Output "Created Security Group: $dept in $ouPath"
+    } else {
+        Write-Output "Group $dept already exists."
     }
 }
